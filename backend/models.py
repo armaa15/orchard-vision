@@ -2,13 +2,15 @@ from sqlalchemy import Column, Integer, String, Date, DateTime, Float, ForeignKe
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
+#import base object as the "diary" for our tables and for being parent for our table classes
 from database import Base
-
 
 class Orchard(Base):
     __tablename__ = "orchards"
 
+    # use primary key throughout file for clear distinction
     id = Column(Integer, primary_key=True, index=True)
+    # use nullable throughout file to inforce entry for inputs needed and make them optional for ones not needed
     name = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
