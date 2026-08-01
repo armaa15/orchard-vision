@@ -15,7 +15,7 @@ function App() {
   const [trees, setTrees] = useState<Tree[]>([])
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/trees')
+    fetch('orchard-vision-production.up.railway.app')
       .then((response) => response.json())
       .then((data) => setTrees(data))
   }, [])
