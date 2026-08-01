@@ -15,7 +15,7 @@ function App() {
   const [trees, setTrees] = useState<Tree[]>([])
 
   useEffect(() => {
-    fetch('orchard-vision-production.up.railway.app')
+    fetch('https://orchard-vision-production.up.railway.app/trees')
       .then((response) => response.json())
       .then((data) => setTrees(data))
   }, [])
