@@ -7,6 +7,8 @@ import shutil
 import uuid
 from datetime import date
 
+import storage
+
 import models
 import schemas
 from database import SessionLocal
@@ -70,9 +72,11 @@ def create_observation(
     if photo is not None:
         extension = os.path.splitext(photo.filename)[1]
         unique_name = f"{uuid.uuid4()}{extension}"
-        photo_path = os.path.join(UPLOAD_DIR, unique_name)
-        with open(photo_path, "wb") as buffer:
-            shutil.copyfileobj(photo.file, buffer)
+        photo_path = storage.upload_photo(
+            photo.file,
+            unique_name,
+            photo.content_type,
+        )
 
     db_observation = models.Observation(
         tree_id=tree_id,
