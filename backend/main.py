@@ -1,12 +1,20 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
+
+import os
+import shutil
+import uuid
+from datetime import date
 
 import models
 import schemas
 from database import SessionLocal
 from database import engine
 models.Base.metadata.create_all(bind=engine)
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # main app object (fast api class objectg)
 app = FastAPI()
@@ -47,8 +55,31 @@ def list_trees(db: Session = Depends(get_db)):
     return db.query(models.Tree).all()
 
 @app.post("/observations", response_model=schemas.ObservationRead)
-def create_observation(observation: schemas.ObservationCreate, db: Session = Depends(get_db)):
-    db_observation = models.Observation(**observation.model_dump())
+def create_observation(
+    tree_id: int = Form(...),
+    observed_on: date = Form(...),
+    notes: str | None = Form(None),
+    photo: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+):
+    tree = db.query(models.Tree).filter(models.Tree.id == tree_id).first()
+    if tree is None:
+        raise HTTPException(status_code=404, detail="Tree not found")
+
+    photo_path = None
+    if photo is not None:
+        extension = os.path.splitext(photo.filename)[1]
+        unique_name = f"{uuid.uuid4()}{extension}"
+        photo_path = os.path.join(UPLOAD_DIR, unique_name)
+        with open(photo_path, "wb") as buffer:
+            shutil.copyfileobj(photo.file, buffer)
+
+    db_observation = models.Observation(
+        tree_id=tree_id,
+        observed_on=observed_on,
+        notes=notes,
+        photo_path=photo_path,
+    )
     db.add(db_observation)
     db.commit()
     db.refresh(db_observation)
