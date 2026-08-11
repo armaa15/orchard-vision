@@ -41,6 +41,7 @@ function App() {
   const [photo, setPhoto] = useState<File | null>(null)
   const [observationError, setObservationError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [fileInputKey, setFileInputKey] = useState(0)
 
   useEffect(() => {
     fetch(`${API_URL}/trees`)
@@ -162,6 +163,7 @@ function App() {
       setObservedOn('')
       setObservationNotes('')
       setPhoto(null)
+      setFileInputKey(fileInputKey + 1)
     } catch {
       setObservationError('Could not reach the server.')
     }
@@ -220,6 +222,13 @@ function App() {
               {observations.map((observation) => (
                 <li key={observation.id}>
                   {observation.observed_on} — {observation.notes ?? 'no notes'}
+                  {observation.photo_path && (
+                    <img
+                      src={observation.photo_path}
+                      alt={`Observation on ${observation.observed_on}`}
+                      className="mt-1 max-w-xs border"
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -232,6 +241,7 @@ function App() {
               value={observationNotes}
               onChange={(e) => setObservationNotes(e.target.value)} />
             <input className="border p-2" type="file" accept="image/*"
+              key={fileInputKey}
               onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
             <button className="bg-green-700 text-white p-2"
               onClick={handleObservationSubmit}>
