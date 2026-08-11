@@ -35,14 +35,23 @@ function App() {
   const [variety, setVariety] = useState('')
   const [plantingYear, setPlantingYear] = useState('')
   const [notes, setNotes] = useState('')
+  const [treeError, setTreeError] = useState<string | null>(null)
   const [observedOn, setObservedOn] = useState('')
   const [observationNotes, setObservationNotes] = useState('')
   const [photo, setPhoto] = useState<File | null>(null)
+  const [observationError, setObservationError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`${API_URL}/trees`)
-      .then((response) => response.json())
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load trees (${response.status}).`)
+        }
+        return response.json()
+      })
       .then((data) => setTrees(data))
+      .catch(() => setLoadError('Could not load trees.'))
   }, [])
 
   useEffect(() => {
@@ -51,11 +60,36 @@ function App() {
       return
     }
     fetch(`${API_URL}/trees/${selectedTreeId}/observations`)
-      .then((response) => response.json())
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load observations (${response.status}).`)
+        }
+        return response.json()
+      })
       .then((data) => setObservations(data))
+      .catch(() => setObservationError('Could not load observations.'))
   }, [selectedTreeId])
 
   const handleSubmit = async () => {
+    setTreeError(null)
+
+    if (!section.trim()) {
+      setTreeError('Section is required.')
+      return
+    }
+    if (!Number.isInteger(Number(rowNumber)) || rowNumber.trim() === '') {
+      setTreeError('Row number must be a whole number.')
+      return
+    }
+    if (!Number.isInteger(Number(positionInRow)) || positionInRow.trim() === '') {
+      setTreeError('Position in row must be a whole number.')
+      return
+    }
+    if (plantingYear && !Number.isInteger(Number(plantingYear))) {
+      setTreeError('Planting year must be a whole number.')
+      return
+    }
+
     const newTree = {
       orchard_id: 1,
       section: section,
@@ -65,23 +99,40 @@ function App() {
       planting_year: plantingYear ? Number(plantingYear) : null,
       notes: notes || null,
     }
-    const response = await fetch(`${API_URL}/trees`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newTree),
-    })
-    const createdTree = await response.json()
-    setTrees([...trees, createdTree])
-    setSection('')
-    setRowNumber('')
-    setPositionInRow('')
-    setVariety('')
-    setPlantingYear('')
-    setNotes('')
+
+    try {
+      const response = await fetch(`${API_URL}/trees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTree),
+      })
+
+      if (!response.ok) {
+        setTreeError(`Could not save tree (${response.status}).`)
+        return
+      }
+
+      const createdTree = await response.json()
+      setTrees([...trees, createdTree])
+      setSection('')
+      setRowNumber('')
+      setPositionInRow('')
+      setVariety('')
+      setPlantingYear('')
+      setNotes('')
+    } catch {
+      setTreeError('Could not reach the server.')
+    }
   }
 
   const handleObservationSubmit = async () => {
+    setObservationError(null)
+
     if (selectedTreeId === null) {
+      return
+    }
+    if (!observedOn) {
+      setObservationError('A date is required.')
       return
     }
 
@@ -95,20 +146,31 @@ function App() {
       formData.append('photo', photo)
     }
 
-    const response = await fetch(`${API_URL}/observations`, {
-      method: 'POST',
-      body: formData,
-    })
-    const createdObservation = await response.json()
-    setObservations([...observations, createdObservation])
-    setObservedOn('')
-    setObservationNotes('')
-    setPhoto(null)
+    try {
+      const response = await fetch(`${API_URL}/observations`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        setObservationError(`Could not save observation (${response.status}).`)
+        return
+      }
+
+      const createdObservation = await response.json()
+      setObservations([...observations, createdObservation])
+      setObservedOn('')
+      setObservationNotes('')
+      setPhoto(null)
+    } catch {
+      setObservationError('Could not reach the server.')
+    }
   }
 
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold text-green-700">Orchard Vision</h1>
+      {loadError && <p className="text-red-700">{loadError}</p>}
       <div className="flex flex-col gap-2 max-w-xs mt-4">
         <input className="border p-2" placeholder="Section"
           value={section} onChange={(e) => setSection(e.target.value)} />
@@ -125,6 +187,7 @@ function App() {
         <button className="bg-green-700 text-white p-2" onClick={handleSubmit}>
           Add tree
         </button>
+        {treeError && <p className="text-red-700">{treeError}</p>}
       </div>
 
       <ul className="mt-6">
@@ -150,7 +213,7 @@ function App() {
             Observations for tree #{selectedTreeId}
           </h2>
 
-          {observations.length === 0 ? (
+          {observationError ? null : observations.length === 0 ? (
             <p>No observations logged.</p>
           ) : (
             <ul className="mt-2">
@@ -174,6 +237,7 @@ function App() {
               onClick={handleObservationSubmit}>
               Log observation
             </button>
+            {observationError && <p className="text-red-700">{observationError}</p>}
           </div>
         </div>
       )}
