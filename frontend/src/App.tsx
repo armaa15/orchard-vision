@@ -35,6 +35,9 @@ function App() {
   const [variety, setVariety] = useState('')
   const [plantingYear, setPlantingYear] = useState('')
   const [notes, setNotes] = useState('')
+  const [observedOn, setObservedOn] = useState('')
+  const [observationNotes, setObservationNotes] = useState('')
+  const [photo, setPhoto] = useState<File | null>(null)
 
   useEffect(() => {
     fetch(`${API_URL}/trees`)
@@ -75,6 +78,32 @@ function App() {
     setVariety('')
     setPlantingYear('')
     setNotes('')
+  }
+
+  const handleObservationSubmit = async () => {
+    if (selectedTreeId === null) {
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('tree_id', String(selectedTreeId))
+    formData.append('observed_on', observedOn)
+    if (observationNotes) {
+      formData.append('notes', observationNotes)
+    }
+    if (photo) {
+      formData.append('photo', photo)
+    }
+
+    const response = await fetch(`${API_URL}/observations`, {
+      method: 'POST',
+      body: formData,
+    })
+    const createdObservation = await response.json()
+    setObservations([...observations, createdObservation])
+    setObservedOn('')
+    setObservationNotes('')
+    setPhoto(null)
   }
 
   return (
@@ -120,6 +149,7 @@ function App() {
           <h2 className="text-xl font-bold">
             Observations for tree #{selectedTreeId}
           </h2>
+
           {observations.length === 0 ? (
             <p>No observations logged.</p>
           ) : (
@@ -131,6 +161,20 @@ function App() {
               ))}
             </ul>
           )}
+
+          <div className="flex flex-col gap-2 max-w-xs mt-4">
+            <input className="border p-2" type="date"
+              value={observedOn} onChange={(e) => setObservedOn(e.target.value)} />
+            <input className="border p-2" placeholder="Observation notes"
+              value={observationNotes}
+              onChange={(e) => setObservationNotes(e.target.value)} />
+            <input className="border p-2" type="file" accept="image/*"
+              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+            <button className="bg-green-700 text-white p-2"
+              onClick={handleObservationSubmit}>
+              Log observation
+            </button>
+          </div>
         </div>
       )}
     </div>
