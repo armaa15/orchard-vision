@@ -25,3 +25,12 @@ data/
 
 *.db
 backend/uploads/
+
+# practice
+/practice/
+
+#experimental variants
+/backend/main2.py
+/frontend/src/App2.tsx
+/frontend/src/App3.tsx
+/frontend/src/App4.tsx
