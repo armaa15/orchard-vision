@@ -1,18 +1,9 @@
 """
-cache_images.py - pre-decode and pre-resize the DiaMOS leaves once.
+cache_images.py: pre-decode the pre-resized (to 256 x 256) JPEG files and then resize them to 256 x 256 for the DiaMOS leaves once.
 
-Training decodes every full-resolution JPEG on every epoch, which makes the
-run I/O-bound: the four DataLoader workers saturate while the GPU idles at
-under 40%. This writes 256-short-side copies once so later epochs decode a
-tiny file instead of a multi-megapixel one.
-
-Short side 256 rather than a forced 256x256 square: the DiaMOS originals are
-3968x2976 and 2976x3968, so squaring them squashes one axis by a third. That
-destroyed the shape cue curl depends on (recall 0.909 -> 0.727). This matches
-what transforms.Resize(256) does, so the cached pipeline sees the same
-geometry the uncached one did.
-
-Run from inside ml/ with the venv active: python cache_images.py
+The issue faced while training the model was that CPU was working at max capacity because it was decoding the 12 MP, OS cached JPEG images 
+from the start at every epoch and then resizing it to 256 x 256 at every epoch. These both made them each epoch run for about 250 seconds.
+To remove this I/O bottleneck I am writing this script.
 """
 
 import shutil
@@ -25,13 +16,15 @@ from PIL import Image, ImageOps
 
 SOURCE_DIR = Path(__file__).parent / "data" / "Pear" / "leaves"
 CACHE_DIR = Path(__file__).parent / "data" / "Pear" / "leaves_256"
-TARGET_SHORT = 256
+
+TARGET_SIZE = (256, 256)
 JPEG_QUALITY = 95
 
 
 def find_images(source_dir):
     """Return (source_path, destination_path) pairs, mirroring the class tree."""
     pairs = []
+
     for class_dir in sorted(p for p in source_dir.iterdir() if p.is_dir()):
         for image_path in sorted(class_dir.iterdir()):
             if not image_path.is_file():
@@ -41,14 +34,17 @@ def find_images(source_dir):
                 continue
             if image_path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
                 continue
+
             destination = CACHE_DIR / class_dir.name / f"{image_path.stem}.jpg"
             pairs.append((image_path, destination))
+
     return pairs
 
 
 def process_one(pair):
-    """Decode, orient, resize short side to 256, and write. Returns (ok, path)."""
+    """Decode, orient, resize, and write a single image. Returns (ok, path)."""
     source, destination = pair
+
     try:
         with Image.open(source) as image:
             # Cameras often store the sensor image unrotated plus an EXIF
@@ -61,22 +57,11 @@ def process_one(pair):
             # blow up inside the model rather than here.
             image = image.convert("RGB")
 
-            # Scale the SHORT side to 256 and let the long side follow, so the
-            # aspect ratio survives. RandomCrop(224) then has slack along the
-            # long axis, which is where the crop augmentation comes from.
-            width, height = image.size
-            if width < height:
-                new_size = (TARGET_SHORT, round(height * TARGET_SHORT / width))
-            else:
-                new_size = (round(width * TARGET_SHORT / height), TARGET_SHORT)
-
-            # LANCZOS rather than BILINEAR: downsampling 12x throws away most
-            # of the pixels, and LANCZOS preserves high-frequency detail far
-            # better. Fine texture is the entire slug-vs-spot problem.
-            image = image.resize(new_size, Image.LANCZOS)
-
+            image = image.resize(TARGET_SIZE, Image.BILINEAR)
             image.save(destination, "JPEG", quality=JPEG_QUALITY)
+
         return True, str(source)
+
     except Exception as error:
         return False, f"{source}: {error}"
 
@@ -113,6 +98,7 @@ def main():
 
     elapsed = time.time() - start
     written = len(pairs) - len(failures)
+
     print(f"\nWrote {written} images in {elapsed:.1f}s")
 
     if failures:
