@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
-DATA_DIR = Path(__file__).parent / "data" / "Pear" / "leaves"
+DATA_DIR = Path(__file__).parent / "data" / "Pear" / "leaves_256"
 
 # Statistics of the ImageNet training set, per RGB channel.
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
