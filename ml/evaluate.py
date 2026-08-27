@@ -15,7 +15,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 from data import build_dataloaders
 from model import build_model, get_device
 
-CHECKPOINT = Path(__file__).parent / "checkpoints" / "baseline_best.pth"
+CHECKPOINT = Path(__file__).parent / "checkpoints" / "unweighted_cached-fix_best.pth"
 
 
 def collect_predictions(model, loader, device):
