@@ -56,16 +56,6 @@ def run_epoch(model, loader, criterion, device, optimizer=None):
 
     return total_loss / seen, correct / seen
 
-def compute_class_weights(train_subset, num_classes, device):
-    count = len(train_subset)
-    indices = train_subset.indices
-    labels = [train_subset.dataset.targets[c] for c in indices]
-    counts = Counter(labels)
-    weights = [
-        count / (num_classes * counts[c]) if counts[c] > 0.0 else 0.0
-        for c in range(num_classes)
-    ]
-    return torch.tensor(weights, dtype=torch.float32, device=device)
 
 def main():
     device = get_device()
@@ -77,8 +67,7 @@ def main():
 
     model = build_model(num_classes=len(classes)).to(device)
 
-    weights = compute_class_weights(train_loader.dataset, len(classes), device)
-    criterion = nn.CrossEntropyLoss(weight=weights)
+    criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(
         [p for p in model.parameters() if p.requires_grad],
         lr=LEARNING_RATE,
