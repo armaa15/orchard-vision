@@ -100,7 +100,7 @@ def main():
                     "epoch": epoch,
                     "val_acc": val_acc,
                 },
-                CHECKPOINT_DIR / "baseline_best.pth",
+                CHECKPOINT_DIR / "unweighted_cached-fix_best.pth",
             )
             print(f"          ↳ saved new best ({val_acc:.3f})")
 

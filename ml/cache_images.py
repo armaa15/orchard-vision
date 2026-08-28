@@ -1,9 +1,43 @@
 """
-cache_images.py: pre-decode the pre-resized (to 256 x 256) JPEG files and then resize them to 256 x 256 for the DiaMOS leaves once.
+cache_images.py - decode and downsize the DiaMOS leaves once, ahead of training.
 
-The issue faced while training the model was that CPU was working at max capacity because it was decoding the 12 MP, OS cached JPEG images 
-from the start at every epoch and then resizing it to 256 x 256 at every epoch. These both made them each epoch run for about 250 seconds.
-To remove this I/O bottleneck I am writing this script.
+Training was I/O-bound rather than compute-bound. Measured, not assumed:
+nvidia-smi showed the GPU at 39% utilisation drawing 14W of a 45W budget,
+while top showed four pt_data_worker processes pinned at 100% CPU each.
+The frozen backbone made the forward pass so cheap that the data pipeline
+became the constraint.
+
+The cause was repeated work. Every epoch decoded all 3,006 full-resolution
+field JPEGs - roughly 12 megapixels each - and resized them down to 256,
+producing byte-identical results ten times over. This script does that
+decode-and-resize once and writes the output to leaves_256/, so each epoch
+reads a small JPEG instead of a large one. Epoch time dropped from ~190s
+to ~4s.
+
+Short side 256, aspect ratio preserved. An earlier version forced a
+square (256, 256), which squashed the 3968x2976 originals by a third along
+one axis. Curl is identified by leaf shape, and its recall fell 0.909 ->
+0.727 as a result. Scaling the short side matches what transforms.Resize(256)
+does, so the cached pipeline sees the same geometry the uncached one did.
+
+Why 256 and not 224: train_transform random-crops 224 from the cached image,
+and the crop needs slack to move around in - that displacement is the
+augmentation. Caching at 224 would force an upsample back to 256 first, and
+upsampling fabricates pixels by interpolation, which blurs exactly the
+high-frequency texture that separates a slug's grazing trail from a fungal
+lesion edge. Downsampling discards information; upsampling invents it.
+
+Why JPEG and not raw arrays: a decoded 256x256x3 uint8 array is 196 KB
+against ~25-40 KB as quality-95 JPEG, so ~590 MB versus ~100 MB across the
+dataset. At this size the disk read costs more than decoding tiny JPEGs.
+Quality 95 because these are already-lossy images being re-encoded and
+compounding the loss on fine texture is the thing to avoid.
+
+The cache holds only the deterministic prefix - decode, orient, resize.
+Random crop and flip stay in the per-epoch path, since the whole point of
+them is that they differ every epoch.
+
+Run from inside ml/ with the venv active: python cache_images.py
 """
 
 import shutil
@@ -17,7 +51,7 @@ from PIL import Image, ImageOps
 SOURCE_DIR = Path(__file__).parent / "data" / "Pear" / "leaves"
 CACHE_DIR = Path(__file__).parent / "data" / "Pear" / "leaves_256"
 
-TARGET_SIZE = (256, 256)
+TARGET_SHORT = 256
 JPEG_QUALITY = 95
 
 
@@ -57,7 +91,19 @@ def process_one(pair):
             # blow up inside the model rather than here.
             image = image.convert("RGB")
 
-            image = image.resize(TARGET_SIZE, Image.BILINEAR)
+            # Scale the SHORT side to 256 and let the long side follow, so the
+            # aspect ratio survives. RandomCrop(224) then has slack along the
+            # long axis, which is where the crop augmentation comes from.
+            width, height = image.size
+            if width < height:
+                new_size = (TARGET_SHORT, round(height * TARGET_SHORT / width))
+            else:
+                new_size = (round(width * TARGET_SHORT / height), TARGET_SHORT)
+
+            # LANCZOS rather than BILINEAR: downsampling 12x throws away most
+            # of the pixels, and LANCZOS preserves high-frequency detail far
+            # better. Fine texture is the entire slug-vs-spot problem.
+            image = image.resize(new_size, Image.LANCZOS)
             image.save(destination, "JPEG", quality=JPEG_QUALITY)
 
         return True, str(source)
