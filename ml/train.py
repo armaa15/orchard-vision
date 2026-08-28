@@ -9,18 +9,29 @@ Run from inside ml/ with the venv active:  python train.py
 
 import time
 from pathlib import Path
+import argparse
 
 import torch
 import torch.nn as nn
 
 from data import build_dataloaders
 from model import build_model, get_device
-from collections import Counter
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 EPOCHS = 10
 LEARNING_RATE = 1e-3
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(description =__doc__)
+    parser.add_argument(
+        "--run",
+        default="not_named_unknown",
+        help="Run name. Checkpoint saves to checkpoints/{run}.pth"
+    )
+    parser.add_argument("--epochs", type=int, default=EPOCHS)
+    parser.add_argument("--lr", type=float, default=LEARNING_RATE)
+    return parser.parse_args()
 
 def run_epoch(model, loader, criterion, device, optimizer=None):
     """One full pass over loader. Trains if an optimizer is given, else evaluates."""
@@ -58,6 +69,7 @@ def run_epoch(model, loader, criterion, device, optimizer=None):
 
 
 def main():
+    args = parse_args()
     device = get_device()
     print(f"Device: {device}")
 
@@ -73,7 +85,10 @@ def main():
         lr=LEARNING_RATE,
     )
 
-    CHECKPOINT_DIR.mkdir(exist_ok=True)
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = CHECKPOINT_DIR / f"{args.run}_best.pth"
+    print(f"Checkpoint target: {checkpoint_path}\n")
+
     best_val_acc = 0.0
 
     for epoch in range(1, EPOCHS + 1):
@@ -100,8 +115,13 @@ def main():
                     "classes": classes,
                     "epoch": epoch,
                     "val_acc": val_acc,
+                    # Recorded so a checkpoint identifies its own run without
+                    # depending on the filename staying accurate.
+                    "run": args.run,
+                    "epochs": args.epochs,
+                    "lr": args.lr,
                 },
-                CHECKPOINT_DIR / "weighted_cached-fix_best.pth",
+                checkpoint_path
             )
             print(f"          ↳ saved new best ({val_acc:.3f})")
 
