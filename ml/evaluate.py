@@ -17,7 +17,7 @@ from model import build_model, get_device
 
 import argparse
 
-CHECKPOINT = Path(__file__).parent / "checkpoints" / "weighted_cached-fix_best.pth"
+CHECKPOINT = Path(__file__).parent / "checkpoints"
 
 
 def parse_args():
@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument(
         "--run",
         default="unnamed",
-        help="Run name. Reads checkpoints/{run}_best.pth",
+        help="Run name. Reads checkpoints/{run}.pth",
     )
     return parser.parse_args()
 
@@ -64,9 +64,9 @@ def print_confusion(matrix, classes):
 def main():
     args = parse_args()
 
-    checkpoint_path = CHECKPOINT_DIR / f"{args.run}.pth"
+    checkpoint_path = CHECKPOINT / f"{args.run}.pth"
     if not checkpoint_path.exists():
-        available = sorted(p.name for p in CHECKPOINT_DIR.glob("*.pth"))
+        available = sorted(p.name for p in CHECKPOINT.glob("*.pth"))
         raise SystemExit(
             f"No checkpoint at {checkpoint_path}\n"
             f"Available: {', '.join(available) if available else '(none)'}"
@@ -74,7 +74,7 @@ def main():
 
     device = get_device()
 
-    checkpoint = torch.load(CHECKPOINT, map_location=device, weights_only=False)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     classes = checkpoint["classes"]
 
     print(f"Checkpoint from epoch {checkpoint['epoch']}, "

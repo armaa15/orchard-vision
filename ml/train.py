@@ -3,6 +3,7 @@ train.py — fine-tune the final layer of ResNet18 on DiaMOS pear leaves.
 
 Baseline run: no imbalance handling. This establishes the naive result
 that later versions are measured against.
+Modified: We would be including augmentation.
 
 Run from inside ml/ with the venv active:  python train.py
 """
@@ -18,7 +19,7 @@ from data import build_dataloaders
 from model import build_model, get_device
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
-EPOCHS = 10
+EPOCHS = 40
 LEARNING_RATE = 1e-3
 
 
@@ -70,6 +71,11 @@ def run_epoch(model, loader, criterion, device, optimizer=None):
 
 def main():
     args = parse_args()
+
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = CHECKPOINT_DIR / f"{args.run}.pth"
+    print(f"Checkpoint target: {checkpoint_path}\n")
+
     device = get_device()
     print(f"Device: {device}")
 
@@ -82,16 +88,12 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(
         [p for p in model.parameters() if p.requires_grad],
-        lr=LEARNING_RATE,
+        lr=args.lr,
     )
-
-    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = CHECKPOINT_DIR / f"{args.run}_best.pth"
-    print(f"Checkpoint target: {checkpoint_path}\n")
 
     best_val_acc = 0.0
 
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(1, args.epochs + 1):
         start = time.time()
 
         train_loss, train_acc = run_epoch(
@@ -102,7 +104,7 @@ def main():
         elapsed = time.time() - start
 
         print(
-            f"Epoch {epoch:>2}/{EPOCHS}  "
+            f"Epoch {epoch:>2}/{args.epochs}  "
             f"train loss {train_loss:.4f} acc {train_acc:.3f}  |  "
             f"val loss {val_loss:.4f} acc {val_acc:.3f}   ({elapsed:.1f}s)"
         )
