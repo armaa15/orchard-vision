@@ -15,7 +15,19 @@ from sklearn.metrics import classification_report, confusion_matrix
 from data import build_dataloaders
 from model import build_model, get_device
 
+import argparse
+
 CHECKPOINT = Path(__file__).parent / "checkpoints" / "weighted_cached-fix_best.pth"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--run",
+        default="unnamed",
+        help="Run name. Reads checkpoints/{run}_best.pth",
+    )
+    return parser.parse_args()
 
 
 def collect_predictions(model, loader, device):
@@ -50,6 +62,16 @@ def print_confusion(matrix, classes):
 
 
 def main():
+    args = parse_args()
+
+    checkpoint_path = CHECKPOINT_DIR / f"{args.run}.pth"
+    if not checkpoint_path.exists():
+        available = sorted(p.name for p in CHECKPOINT_DIR.glob("*.pth"))
+        raise SystemExit(
+            f"No checkpoint at {checkpoint_path}\n"
+            f"Available: {', '.join(available) if available else '(none)'}"
+        )
+
     device = get_device()
 
     checkpoint = torch.load(CHECKPOINT, map_location=device, weights_only=False)
@@ -86,6 +108,12 @@ def main():
         n = sum(1 for p in y_pred if p == idx)
         print(f"  {name:<8} predicted {n:>4} times")
 
-
+    if "slug" in classes and "spot" in classes:
+        s, p = classes.index("slug"), classes.index("spot")
+        boundary = int(matrix[s][p] + matrix[p][s])
+        total_errors = int(matrix.sum() - matrix.diagonal().sum())
+        if total_errors:
+            print(f"\nslug/spot confusion: {boundary} of {total_errors} errors "
+                  f"({100 * boundary / total_errors:.1f}%)")
 if __name__ == "__main__":
     main()
